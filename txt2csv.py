@@ -19,7 +19,7 @@ locations = {
     'Gifford': Location( name="Gifford Public School", 
                          address="406 S Main St, Gifford, IL 61847" ),
     'HCS': Location( name="Holy Cross School",
-                     address="410 W White St, Champaign, IL 61820, USA" ),
+                     address="" ),
     'Holy Family': Location( name="Holy Family Catholic Church",
                              address="444 E Main St, Danville, IL 61832" ),
     'Judah': Location( name="Judah",
@@ -38,6 +38,8 @@ locations = {
                             address="650 N Wyckles Rd, Decatur, IL 62522" ),
     'Thomasboro': Location( name="Thomasboro Grade School",
                             address="201 N Phillips St, Thomasboro, IL 61878" ),
+    'TBD': Location( name="TBD",
+                     address="" ),
 }
 
 re_locations = {
@@ -55,6 +57,7 @@ re_locations = {
     re.compile( 'St\.? Matt' ) : locations[ 'St Matt' ],
     re.compile( 'Tabernacle' ) : locations[ 'Tabernacle' ],
     re.compile( 'Thomasboro' ) : locations[ 'Thomasboro' ],
+    re.compile( 'TBD' ) : locations[ 'TBD' ],
 }
 
 months = [ 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
@@ -77,7 +80,7 @@ re_valid_subj = re.compile( 'GVB' )
 
 re_valid_away_game = re.compile( 'All day' )
 
-re_valid_skip = re.compile( '^Calendar' )
+re_valid_skip = re.compile( '^(Calendar|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)' )
 
 
 def get_location_match( val ):
@@ -87,6 +90,19 @@ def get_location_match( val ):
             return location
     # No match found
     raise UserWarning( "No location found for: '{}'".format( val ) )
+
+
+def get_grade_level( val ):
+    # Try to extract grade level from subject (val) passed in
+    grade_levels = { '5th': 5, '6th': 6, '7th': 7 }
+    rv = None
+    for (k,v) in grade_levels.items():
+        if k in val:
+            rv = v
+            break
+    if rv is None:
+        raise UserWarning( "Unable to find grade level in '{}'".format( val ) )
+    return rv
     
 
 class Event:
@@ -125,78 +141,77 @@ class Event:
         if evtype == 'game':
             evloc = "\"{}\n{}\"".format( self.location.name, self.location.address )
 
-        return ','.join( [ evdate, evstart, evend, self.subj, evloc, evtype ] )
+        evgrade = ''
+        if self.grade is not None:
+            evgrade = '{}'.format( self.grade )
+
+        return ','.join( [ evdate, evstart, evend, self.subj, evloc, evgrade, evtype ] )
 
     @staticmethod
     def csv_hdrs():
-        return ','.join([ 'Date', 'Start', 'End', 'Description', 'Location', 'Type' ])
+        return ','.join([ 'Date', 'Start', 'End', 'Description', 'Location', 'Grade', 'Type' ])
 
 
-cur = None
+cur_event = None
 all_events = []
+cur_date_parts = {}
+cur_date = None
 
 for l in fileinput.input():
     #line = l.decode( 'utf8', 'ignore' )
     line = l.strip()
     logging.info( "Input: '{}'".format( line ) )
-#    if re_valid_date.search(line):
-#        logging.debug( "NEW RECORD" )
-#        cur = Event()
-#        all_events.append( cur )
-#        # DATE
-#        date_formats = [ '%A, %B %d, %Y',
-#                        '%b %d, %Y',
-#        ]
-#        last_err = None
-#        evdate = None
-#        for DF in date_formats:
-#            try:
-#                evdate = datetime.datetime.strptime( line, DF )
-#            except ( ValueError ) as e:
-#                last_err = e
-#        if evdate == None:
-#            raise last_err
-#        logging.debug( "Got Date: '{}'".format( evdate ) )
-#        cur.date = evdate
     day_match = re_valid_day.match( line )
     month_match = re_valid_month.match( line )
     time_match = re_valid_time.match( line )
     if day_match:
-        logging.debug( "NEW RECORD" )
-        cur = Event()
-        all_events.append( cur )
-        cur.day = int( day_match.group(1) )
+        logging.debug( "NEW DAY" )
+        cur_date_parts = { 'day': int( day_match.group(1) ) }
+        cur_date = None
     elif month_match:
         logging.debug( "MONTH" )
         month_name = month_match.group(1).upper()
         logging.debug( "Got month: '{}'".format( month_name ) )
-        cur.month = months.index( month_name ) + 1
-        if cur.month >= today.month:
-            cur.year = this_year
+        cur_date_parts[ 'month' ] = months.index( month_name ) + 1
+        if cur_date_parts[ 'month' ] >= today.month:
+            cur_date_parts[ 'year' ] = this_year
         else:
-            cur.year = next_year
-        cur.date = datetime.date( cur.year, cur.month, cur.day )
+            cur_date_parts[ 'year' ] = next_year
+        cur_date = datetime.date( year = cur_date_parts[ 'year' ],
+                                  month = cur_date_parts[ 'month' ],
+                                  day = cur_date_parts[ 'day' ] )
+        logging.debug( "NEW DATE SET TO '{}'".format( cur_date ) )
     elif time_match:
         logging.debug( "START END TIMES" )
+        logging.debug( "NEW EVENT" )
+        cur_event = Event()
+        all_events.append( cur_event )
+        cur_event.date = cur_date
         parts = line.split()
         start = parts[0].split( ':' )
 #       logging.debug( "  start_parts: {}".format( start ) )
         end = parts[-1].split( ':' )
 #       logging.debug( "  end_parts: {}".format( end ) )
-        cur.starttime = datetime.time( hour=int(start[0]), minute=int(start[1]) )
-        cur.endtime = datetime.time( hour=int(end[0]), minute=int(end[1]) )
+        cur_event.starttime = datetime.time( hour=int(start[0]), minute=int(start[1]) )
+        cur_event.endtime = datetime.time( hour=int(end[0]), minute=int(end[1]) )
     elif re_valid_subj.search( line ):
         logging.debug( "SUBJECT" )
-        cur.subj = line.strip()
+        cur_event.subj = line
+        cur_event.grade = get_grade_level( line )
     elif re_valid_away_game.search( line ):
         logging.debug( "ALL DAY" )
+        logging.debug( "NEW EVENT" )
+        cur_event = Event()
+        all_events.append( cur_event )
+        cur_event.date = cur_date
         # AWAY GAME
-        cur.away = True
+        cur_event.away = True
     elif re_valid_skip.search( line ):
         logging.debug( "SKIP" )
         pass
     else:
-        cur.location = get_location_match( line )
+        cur_event.location = get_location_match( line )
+        logging.debug( "SET LOCATION TO '{}'".format( cur_event.location.name ) )
         #raise UserWarning( "Unmatched line: '{}'".format( line ) )
 
 print( Event.csv_hdrs() )

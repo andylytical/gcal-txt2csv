@@ -9,9 +9,6 @@ logging.basicConfig( level=logging.DEBUG )
 
 Location = collections.namedtuple( 'Location', ['name', 'address' ] )
 
-months = ( 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec' )
-
 locations = {
     'Blue Ridge': Location( name='Blue Ridge Junior High School',
                             address='247 S McKinley St, Mansfield, IL 61854' ),
@@ -60,19 +57,27 @@ re_locations = {
     re.compile( 'Thomasboro' ) : locations[ 'Thomasboro' ],
 }
 
+months = [ 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+           'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC' ]
+
 today = datetime.datetime.today()
+this_year = today.year
+next_year = today.year + 1
 
 #re_valid_time = re.compile( '([0-9]{2}:[0-9]) [^0-9]+ ([0-9]{2}:[0-9])' )
 re_valid_time = re.compile( '([0-9]{2}:[0-9]{2})' )
 
-re_valid_date = re.compile(
-    '(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* [0-9]{1,2}, [0-9]{4}' )
+re_valid_day = re.compile( '^([0-9]{1,2})$' )
+re_valid_month = re.compile( '^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC), ' )
+
+#re_valid_date = re.compile(
+#    '(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* [0-9]{1,2}, [0-9]{4}' )
 
 re_valid_subj = re.compile( 'GVB' )
 
 re_valid_away_game = re.compile( 'All day' )
 
-re_valid_skip = re.compile( '^Calendar|^([SMTWF][a-z]{2})$' )
+re_valid_skip = re.compile( '^Calendar' )
 
 
 def get_location_match( val ):
@@ -131,31 +136,49 @@ cur = None
 all_events = []
 
 for l in fileinput.input():
-    logging.info( "Input: '{}'".format( l ) )
     #line = l.decode( 'utf8', 'ignore' )
     line = l.strip()
-    parts = line.split()
-    if re_valid_date.search(line):
+    logging.info( "Input: '{}'".format( line ) )
+#    if re_valid_date.search(line):
+#        logging.debug( "NEW RECORD" )
+#        cur = Event()
+#        all_events.append( cur )
+#        # DATE
+#        date_formats = [ '%A, %B %d, %Y',
+#                        '%b %d, %Y',
+#        ]
+#        last_err = None
+#        evdate = None
+#        for DF in date_formats:
+#            try:
+#                evdate = datetime.datetime.strptime( line, DF )
+#            except ( ValueError ) as e:
+#                last_err = e
+#        if evdate == None:
+#            raise last_err
+#        logging.debug( "Got Date: '{}'".format( evdate ) )
+#        cur.date = evdate
+    day_match = re_valid_day.match( line )
+    month_match = re_valid_month.match( line )
+    time_match = re_valid_time.match( line )
+    if day_match:
         logging.debug( "NEW RECORD" )
         cur = Event()
         all_events.append( cur )
-        # DATE
-        date_formats = [ '%A, %B %d, %Y',
-                        '%b %d, %Y',
-        ]
-        last_err = None
-        evdate = None
-        for DF in date_formats:
-            try:
-                evdate = datetime.datetime.strptime( line, DF )
-            except ( ValueError ) as e:
-                last_err = e
-        if evdate == None:
-            raise last_err
-        logging.debug( "Got Date: '{}'".format( evdate ) )
-        cur.date = evdate
-    elif re_valid_time.match( line ):
+        cur.day = int( day_match.group(1) )
+    elif month_match:
+        logging.debug( "MONTH" )
+        month_name = month_match.group(1).upper()
+        logging.debug( "Got month: '{}'".format( month_name ) )
+        cur.month = months.index( month_name ) + 1
+        if cur.month >= today.month:
+            cur.year = this_year
+        else:
+            cur.year = next_year
+        cur.date = datetime.date( cur.year, cur.month, cur.day )
+    elif time_match:
         logging.debug( "START END TIMES" )
+        parts = line.split()
         start = parts[0].split( ':' )
 #       logging.debug( "  start_parts: {}".format( start ) )
         end = parts[-1].split( ':' )

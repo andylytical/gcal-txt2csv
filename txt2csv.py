@@ -3,6 +3,7 @@ import datetime
 import logging
 import re
 import collections
+import pprint
 
 #logging.basicConfig( level=logging.INFO )
 logging.basicConfig( level=logging.DEBUG )
@@ -67,20 +68,19 @@ today = datetime.datetime.today()
 this_year = today.year
 next_year = today.year + 1
 
-#re_valid_time = re.compile( '([0-9]{2}:[0-9]) [^0-9]+ ([0-9]{2}:[0-9])' )
 re_valid_time = re.compile( '([0-9]{2}:[0-9]{2})' )
 
 re_valid_day = re.compile( '^([0-9]{1,2})$' )
 re_valid_month = re.compile( '^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC), ' )
-
-#re_valid_date = re.compile(
-#    '(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* [0-9]{1,2}, [0-9]{4}' )
 
 re_valid_subj = re.compile( 'GVB' )
 
 re_valid_away_game = re.compile( 'All day' )
 
 re_valid_skip = re.compile( '^(Calendar|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)' )
+
+#                                     HOUR_______   SECOND____   AM/PM_______
+re_starttime_from_subj = re.compile( '([0-9]{1,2}):?([0-9]{2})? ?([APM]{2})' )
 
 
 def get_location_match( val ):
@@ -94,7 +94,12 @@ def get_location_match( val ):
 
 def get_grade_level( val ):
     # Try to extract grade level from subject (val) passed in
-    grade_levels = { '5th': 5, '6th': 6, '7th': 7 }
+    grade_levels = collections.OrderedDict()
+    grade_levels[ '5th 6th' ] = 6
+    grade_levels[ '5th' ] = 5
+    grade_levels[ '6th' ] = 6
+    grade_levels[ '7th' ] = 7
+
     rv = None
     for (k,v) in grade_levels.items():
         if k in val:
@@ -110,17 +115,40 @@ class Event:
         self.date = None
         self.away = False
         self.location = None
+        self.starttime = None
+        self.endtime = None
 
     def as_csv( self ):
         evdate = self.date.strftime( '%a %b %d %Y' )
 
         evstart = ''
-        if not self.away:
-            evstart = self.starttime.strftime('%I:%M %p' )
+        if self.away:
+            # extract start time from subject
+            match = re_starttime_from_subj.search( self.subj.upper() )
+            if match:
+                matches = pprint.pformat( match.groups() )
+                #logging.debug( "MATCHES: '{}'".format( matches ) )
+                hour = int( match.group( 1 ) )
+                minute = match.group( 2 )
+                pm = match.group( 3 )
+                if minute is None:
+                    minute = 0
+                else:   
+                    minute = int( match.group( 2 ) )
+                if 'PM' in pm:
+                    hour += 12
+                self.starttime = datetime.time( hour, minute )
+                self.endtime = datetime.time( hour + 1, minute )
+            elif 'TBD' in self.subj:
+                pass
+            else:
+                raise UserWarning( "No starttime found for away game '{}'".format( self.subj ) )
+        if self.starttime:
+            evstart = self.starttime.strftime( '%I:%M %p' )
 
         evend = ''
-        if not self.away:
-            evend = self.endtime.strftime('%I:%M %p' )
+        if self.endtime:
+            evend = self.endtime.strftime( '%I:%M %p' )
 
         evtype = ''
         if self.away:

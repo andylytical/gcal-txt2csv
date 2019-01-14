@@ -29,10 +29,12 @@ locations = {
                                  address="201 W State St, Mahomet, IL 61853" ),
     'Next Gen': Location( name="Next Generation School",
                          address="2511 Galen Dr, Champaign, IL 61821" ),
-    'St Joe': Location( name="St. Joseph",
-                        address="606 Peters Dr, St Joseph, IL 61873" ),
     'Malachy': Location( name="St. Malachy's Catholic Church",
                          address="340 E Belle Ave, Rantoul, IL 61866" ),
+    'SJB': Location( name="St John's Lutheran School",
+                        address="206 E Main St, Buckley, IL 60918, USA" ),
+    'St Joe': Location( name="St. Joseph",
+                        address="606 Peters Dr, St Joseph, IL 61873" ),
     'St Matt': Location( name="St. Matthew Catholic School",
                          address="1307 Lincolnshire Dr, Champaign, IL 61821" ),
     'Tabernacle': Location( name="Tabernacle Baptist Church",
@@ -45,6 +47,7 @@ locations = {
 
 re_locations = {
     re.compile( 'Blue Ridge' ) : locations[ 'Blue Ridge' ],
+    re.compile( 'Buckley' ) : locations[ 'SJB' ],
     re.compile( 'Corpus Christi' ) : locations[ 'Corpus Christi' ],
 	re.compile( 'Deland' ) : locations[ 'Deland' ],
     re.compile( 'Gifford' ) : locations[ 'Gifford' ],

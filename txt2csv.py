@@ -74,7 +74,8 @@ next_year = today.year + 1
 re_valid_time = re.compile( '([0-9]{2}:[0-9]{2})' )
 
 re_valid_day = re.compile( '^([0-9]{1,2})$' )
-re_valid_month = re.compile( '^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC), ' )
+re_valid_month = re.compile( '^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC), ',
+                             flags=re.IGNORECASE )
 
 re_valid_subj = re.compile( 'GVB' )
 

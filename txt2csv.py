@@ -4,92 +4,88 @@ import logging
 import re
 import collections
 import pprint
+import argparse
+import yaml
 
 #logging.basicConfig( level=logging.INFO )
 logging.basicConfig( level=logging.DEBUG )
 
-Location = collections.namedtuple( 'Location', ['name', 'address' ] )
+Description = '''
+Convert text from Google Calendar search output into CSV or HTML
 
-locations = {
-    'Blue Ridge': Location( name='Blue Ridge Junior High School',
-                            address='247 S McKinley St, Mansfield, IL 61854' ),
-    'Corpus Christi': Location( name='Corpus Christi Catholic School',
-                                address='1909 E Lincoln St, Bloomington, IL 61701' ),
-    'Deland': Location( name='De Land Weldon Elementary School',
-                        address='304 IL-10, De Land, IL 61839' ),
-    'Gifford': Location( name="Gifford Public School", 
-                         address="406 S Main St, Gifford, IL 61847" ),
-    'HCS': Location( name="Holy Cross School",
-                     address="" ),
-    'Holy Family': Location( name="Holy Family Catholic Church",
-                             address="444 E Main St, Danville, IL 61832" ),
-    'Judah': Location( name="Judah",
-                       address="908 N Prospect Ave, Champaign, IL 61820" ),
-    'Mahomet-Seymour': Location( name="Mahomet-Seymour Junior High",
-                                 address="201 W State St, Mahomet, IL 61853" ),
-    'Next Gen': Location( name="Next Generation School",
-                         address="2511 Galen Dr, Champaign, IL 61821" ),
-    'Malachy': Location( name="St. Malachy's Catholic Church",
-                         address="340 E Belle Ave, Rantoul, IL 61866" ),
-    'SJB': Location( name="St John's Lutheran School",
-                        address="206 E Main St, Buckley, IL 60918, USA" ),
-    'St Joe': Location( name="St. Joseph",
-                        address="606 Peters Dr, St Joseph, IL 61873" ),
-    'St Matt': Location( name="St. Matthew Catholic School",
-                         address="1307 Lincolnshire Dr, Champaign, IL 61821" ),
-    'Tabernacle': Location( name="Tabernacle Baptist Church",
-                            address="650 N Wyckles Rd, Decatur, IL 62522" ),
-    'Thomasboro': Location( name="Thomasboro Grade School",
-                            address="201 N Phillips St, Thomasboro, IL 61878" ),
-    'TBD': Location( name="TBD",
-                     address="" ),
-}
+Full details at: https://github.com/andylytical/gcal-txt2csv
+'''
 
-re_locations = {
-    re.compile( 'Blue Ridge' ) : locations[ 'Blue Ridge' ],
-    re.compile( 'Buckley' ) : locations[ 'SJB' ],
-    re.compile( 'Corpus Christi' ) : locations[ 'Corpus Christi' ],
-	re.compile( 'Deland' ) : locations[ 'Deland' ],
-    re.compile( 'Gifford' ) : locations[ 'Gifford' ],
-    re.compile( 'Holy Cross' ) : locations[ 'HCS' ],
-    re.compile( 'Holy Family' ) : locations[ 'Holy Family' ],
-    re.compile( 'Judah' ) : locations[ 'Judah' ],
-    re.compile( 'Mahomet' ) : locations[ 'Mahomet-Seymour' ],
-    re.compile( 'Next Gen(eration)?' ) : locations[ 'Next Gen' ],
-    re.compile( 'St\.? Jo(e|seph)' ) : locations[ 'St Joe' ],
-    re.compile( 'Malachy' ) : locations[ 'Malachy' ],
-    re.compile( 'St\.? Matt' ) : locations[ 'St Matt' ],
-    re.compile( 'Tabernacle' ) : locations[ 'Tabernacle' ],
-    re.compile( 'Thomasboro' ) : locations[ 'Thomasboro' ],
-    re.compile( 'TBD' ) : locations[ 'TBD' ],
-}
+Location = collections.namedtuple( 'Location', ['name', 'address', 'regex' ] )
 
-months = [ 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-           'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC' ]
+locations = {}
+args = None
+output_headers = []
 
-today = datetime.datetime.today()
-this_year = today.year
-next_year = today.year + 1
 
-re_valid_time = re.compile( '([0-9]{2}:[0-9]{2})' )
+def parse_cmdline():
+    global args
+    global output_headers
+    header_list_types = {
+        'tiny': [ 'Date', 'Description' ],
+        'all': Event.known_headers,
+    }
+    parser = argparse.ArgumentParser( description=Description )
+    parser.add_argument( '-l', '--locations', 
+        help='YAML file with locations' )
+    parser.add_argument( '-i', '--itype', choices=header_list_types.keys(),
+        help=(' short names for header lists'
+              ' ' + pprint.pformat( header_list_types ) + ''
+              ' (default: %(default)s)'
+        )
+    )
+    parser.add_argument( '-o', '--otype', choices=['csv', 'html'],
+        help='Output format; (default: %(default)s)' )
+    parser.add_argument( '-H', '--headers', action='append', 
+        choices=Event.known_headers,
+        help=(' Manually specify headers to use in output' 
+              ' Overrides --itype'
+        )
+    )   
+    parser.add_argument( 'datafile',
+        help='txt data from google calendar search results' )
 
-re_valid_day = re.compile( '^([0-9]{1,2})$' )
-re_valid_month = re.compile( '^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC), ',
-                             flags=re.IGNORECASE )
+    defaults = { 'itype': 'all',
+                 'otype': 'csv',
+    }
+    parser.set_defaults( **defaults )
+    args = parser.parse_args()
+    if args.headers:
+        output_headers = args.headers
+    else:
+        output_headers = header_list_types[ args.itype ]
 
-re_valid_subj = re.compile( 'GVB' )
 
-re_valid_away_game = re.compile( 'All day' )
-
-re_valid_skip = re.compile( '^(Calendar|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)' )
-
-#                                     HOUR_______   SECOND____   AM/PM_______
-re_starttime_from_subj = re.compile( '([0-9]{1,2}):?([0-9]{2})? ?([APM]{2})' )
-
+def load_locations():
+    raw_data = None
+    global locations
+    with open( args.locations ) as f:
+        raw_data = yaml.load( f )
+    default = raw_data.pop( 'DEFAULT' )
+    for k,v in raw_data.items():
+        address = v['address']
+        regex = k
+        name = k
+        if 'regex' in v:
+            regex = v['regex']
+        if 'name' in v:
+            name = v['name']
+        locations[ k ] = Location( name = name,
+                                   address = address,
+                                   regex = re.compile( regex ) )
+        if k == default:
+            locations[ 'DEFAULT' ] = locations[ k ]
 
 def get_location_match( val ):
     # Try to find location in event description
-    for (re_loc, location) in re_locations.items():
+    global locations
+    for (k, location) in locations.items():
+        re_loc = location.regex
         if re_loc.search( val ):
             return location
     # No match found
@@ -115,9 +111,21 @@ def get_grade_level( val ):
     
 
 class Event:
+    #                                     HOUR_______   SECOND____   AM/PM_______
+    re_starttime_from_subj = re.compile( '([0-9]{1,2}):?([0-9]{2})? ?([APM]{2})' )
+    known_headers = [ 'Date', 
+                      'Start', 
+                      'End', 
+                      'Description', 
+                      'Location', 
+                      'Grade', 
+                      'Type' ]
+
     def __init__( self ):
         self.date = None
-        self.away = False
+        self.all_day = False
+        self.subj = None
+        self.raw_location = None
         self.location = None
         self.starttime = None
         self.endtime = None
@@ -126,9 +134,9 @@ class Event:
         evdate = self.date.strftime( '%a %b %d %Y' )
 
         evstart = ''
-        if self.away:
+        if self.all_day:
             # extract start time from subject
-            match = re_starttime_from_subj.search( self.subj.upper() )
+            match = self.re_starttime_from_subj.search( self.subj.upper() )
             if match:
                 matches = pprint.pformat( match.groups() )
                 #logging.debug( "MATCHES: '{}'".format( matches ) )
@@ -146,7 +154,7 @@ class Event:
             elif 'TBD' in self.subj:
                 pass
             else:
-                raise UserWarning( "No starttime found for away game '{}'".format( self.subj ) )
+                raise UserWarning( "No starttime found for all-day event '{}'".format( self.subj ) )
         if self.starttime:
             evstart = self.starttime.strftime( '%I:%M %p' )
 
@@ -155,7 +163,7 @@ class Event:
             evend = self.endtime.strftime( '%I:%M %p' )
 
         evtype = ''
-        if self.away:
+        if self.all_day:
             evtype = 'game'
         elif re.search( 'Practice|Open Gym', self.subj, re.I ):
             evtype = 'Practice'
@@ -166,10 +174,10 @@ class Event:
 
         evloc = ''
         if self.location is None:
-            if self.away:
+            if self.all_day:
                 self.location = get_location_match( self.subj )
             else:
-                self.location = locations[ 'HCS' ]
+                self.location = locations[ 'DEFAULT' ]
         if evtype == 'game':
             evloc = "\"{}\n{}\"".format( self.location.name, self.location.address )
 
@@ -184,68 +192,115 @@ class Event:
         return ','.join([ 'Date', 'Start', 'End', 'Description', 'Location', 'Grade', 'Type' ])
 
 
-cur_event = None
-all_events = []
-cur_date_parts = {}
-cur_date = None
+def process_datafile( filename ):
+    all_events = []
 
-for l in fileinput.input():
-    #line = l.decode( 'utf8', 'ignore' )
-    line = l.strip()
-    logging.info( "Input: '{}'".format( line ) )
-    day_match = re_valid_day.match( line )
-    month_match = re_valid_month.match( line )
-    time_match = re_valid_time.match( line )
-    if day_match:
-        logging.debug( "NEW DAY" )
-        cur_date_parts = { 'day': int( day_match.group(1) ) }
-        cur_date = None
-    elif month_match:
-        logging.debug( "MONTH" )
-        month_name = month_match.group(1).upper()
-        logging.debug( "Got month: '{}'".format( month_name ) )
-        cur_date_parts[ 'month' ] = months.index( month_name ) + 1
-        if cur_date_parts[ 'month' ] >= today.month:
-            cur_date_parts[ 'year' ] = this_year
-        else:
-            cur_date_parts[ 'year' ] = next_year
-        cur_date = datetime.date( year = cur_date_parts[ 'year' ],
-                                  month = cur_date_parts[ 'month' ],
-                                  day = cur_date_parts[ 'day' ] )
-        logging.debug( "NEW DATE SET TO '{}'".format( cur_date ) )
-    elif time_match:
-        logging.debug( "START END TIMES" )
-        logging.debug( "NEW EVENT" )
-        cur_event = Event()
-        all_events.append( cur_event )
-        cur_event.date = cur_date
-        parts = line.split()
-        start = parts[0].split( ':' )
-#       logging.debug( "  start_parts: {}".format( start ) )
-        end = parts[-1].split( ':' )
-#       logging.debug( "  end_parts: {}".format( end ) )
-        cur_event.starttime = datetime.time( hour=int(start[0]), minute=int(start[1]) )
-        cur_event.endtime = datetime.time( hour=int(end[0]), minute=int(end[1]) )
-    elif re_valid_subj.search( line ):
-        logging.debug( "SUBJECT" )
-        cur_event.subj = line
-        cur_event.grade = get_grade_level( line )
-    elif re_valid_away_game.search( line ):
-        logging.debug( "ALL DAY" )
-        logging.debug( "NEW EVENT" )
-        cur_event = Event()
-        all_events.append( cur_event )
-        cur_event.date = cur_date
-        # AWAY GAME
-        cur_event.away = True
-    elif re_valid_skip.search( line ):
-        logging.debug( "SKIP" )
-        pass
-    else:
-        cur_event.location = get_location_match( line )
-        logging.debug( "SET LOCATION TO '{}'".format( cur_event.location.name ) )
-        #raise UserWarning( "Unmatched line: '{}'".format( line ) )
+    # REFERENCE VARS
+    months = [ 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+               'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC' ]
+    today = datetime.datetime.today()
+    this_year = today.year
+    next_year = today.year + 1
 
-print( Event.csv_hdrs() )
-for e in all_events:
-    print( e.as_csv() )
+    # REGEX VARS
+    # New record / day always starts with day-of-month followed by month, day-of-week
+    re_valid_dom = re.compile( '^([0-9]{1,2})$' )
+    re_valid_month = re.compile( '^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC), ',
+                                 flags=re.IGNORECASE )
+
+    # Second part of record is start-time - end-time OR 'All day'
+    re_valid_time = re.compile( '([0-9]{2}:[0-9]{2})' )
+    re_valid_all_day = re.compile( 'All day' )
+
+    # Skip source calendar name
+    # Skip repeat, alternate format of date (starts with day-of-week)
+    re_valid_skip = re.compile( '^(Calendar|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)' )
+
+    # loop vars
+    cur_event = None
+    cur_date_parts = {}
+    cur_date = None
+
+    # Loop through all input lines
+    with fileinput.input( files=(filename,) ) as f:
+        for l in f:
+            line = l.strip()
+            logging.info( "Input: '{}'".format( line ) )
+            day_match = re_valid_dom.match( line )
+            month_match = re_valid_month.match( line )
+            time_match = re_valid_time.match( line )
+            if day_match:
+                logging.debug( "NEW DAY" )
+                cur_date_parts = { 'day': int( day_match.group(1) ) }
+                cur_date = None
+            elif month_match:
+                logging.debug( "MONTH" )
+                month_name = month_match.group(1).upper()
+                logging.debug( "Got month: '{}'".format( month_name ) )
+                cur_date_parts[ 'month' ] = months.index( month_name ) + 1
+                if cur_date_parts[ 'month' ] >= today.month:
+                    cur_date_parts[ 'year' ] = this_year
+                else:
+                    cur_date_parts[ 'year' ] = next_year
+                cur_date = datetime.date( year = cur_date_parts[ 'year' ],
+                                          month = cur_date_parts[ 'month' ],
+                                          day = cur_date_parts[ 'day' ] )
+                logging.debug( "NEW DATE SET TO '{}'".format( cur_date ) )
+            elif time_match:
+                logging.debug( "START END TIMES" )
+                logging.debug( "NEW EVENT" )
+                cur_event = Event()
+                all_events.append( cur_event )
+                cur_event.date = cur_date
+                parts = line.split()
+                start = parts[0].split( ':' )
+                end = parts[-1].split( ':' )
+                cur_event.starttime = datetime.time( hour=int(start[0]), minute=int(start[1]) )
+                cur_event.endtime = datetime.time( hour=int(end[0]), minute=int(end[1]) )
+            elif re_valid_all_day.search( line ):
+                logging.debug( "ALL DAY" )
+                logging.debug( "NEW EVENT" )
+                cur_event = Event()
+                all_events.append( cur_event )
+                cur_event.date = cur_date
+                cur_event.all_day = True
+            elif re_valid_skip.search( line ):
+                logging.debug( "SKIP" )
+            else:
+                # Line is either subject or location
+                if cur_event.subj is None:
+                    logging.debug( "SUBJECT" )
+                    cur_event.subj = line
+#                    if args.itype == 'sports':
+#                        cur_event.grade = get_grade_level( line )
+                else:
+                    cur_event.raw_location = line
+#                    if args.locations:
+#                        cur_event.location = get_location_match( line )
+#                        logging.debug( "SET LOCATION TO '{}'".format( cur_event.location.name ) )
+#                    else:
+#                        # no locations given, so merge second line with subject
+#                        cur_event.subj += ' ' + line
+    return all_events
+
+
+def print_csv( event_list ):
+    print( Event.csv_hdrs() )
+    for e in event_list:
+        print( e.as_csv() )
+
+
+def run():
+    parse_cmdline()
+    pprint.pprint( output_headers )
+    raise SystemExit()
+    if args.locations:
+        load_locations()
+    events = process_datafile( args.datafile )
+    f = getattr( __name__, 'print_'+ args.otype )
+    f( events )
+    #print_csv( events )
+
+
+if __name__ == '__main__':
+    run()

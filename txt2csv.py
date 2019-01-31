@@ -1,11 +1,13 @@
+import sys
 import fileinput
 import datetime
 import logging
 import re
 import collections
-import pprint
 import argparse
 import yaml
+import csv
+import pprint
 
 #logging.basicConfig( level=logging.INFO )
 logging.basicConfig( level=logging.DEBUG )
@@ -28,37 +30,40 @@ def parse_cmdline():
     global output_headers
     header_list_types = {
         'tiny': [ 'Date', 'Description' ],
-        'all': Event.known_headers,
+        'all': Event.valid_headers,
     }
     parser = argparse.ArgumentParser( description=Description )
     parser.add_argument( '-l', '--locations', 
         help='YAML file with locations' )
-    parser.add_argument( '-i', '--itype', choices=header_list_types.keys(),
-        help=(' short names for header lists'
-              ' ' + pprint.pformat( header_list_types ) + ''
-              ' (default: %(default)s)'
-        )
-    )
-    parser.add_argument( '-o', '--otype', choices=['csv', 'html'],
-        help='Output format; (default: %(default)s)' )
-    parser.add_argument( '-H', '--headers', action='append', 
-        choices=Event.known_headers,
-        help=(' Manually specify headers to use in output' 
-              ' Overrides --itype'
-        )
-    )   
+
+    htype = parser.add_mutually_exclusive_group()
+    for k,v in header_list_types.items():
+        optname = '--' + k
+        help_txt = 'Set output columns: {} (default: %(default)s)'.format( v )
+        htype.add_argument( optname,
+                            dest='headers',
+                            action='store_const',
+                            const=k,
+                            help=help_txt 
+                          )
+
     parser.add_argument( 'datafile',
         help='txt data from google calendar search results' )
 
-    defaults = { 'itype': 'all',
+    otype = parser.add_mutually_exclusive_group()
+    otype.add_argument( '--csv', dest='otype', action='store_const', const='csv',
+        help='Format output as CSV'
+    )
+    otype.add_argument( '--html', dest='otype', action='store_const', const='html',
+        help='Format output as HTML'
+    )
+
+    defaults = { 'headers': 'all',
                  'otype': 'csv',
     }
     parser.set_defaults( **defaults )
     args = parser.parse_args()
-    if args.headers:
-        output_headers = args.headers
-    else:
-        output_headers = header_list_types[ args.itype ]
+    output_headers = header_list_types[ args.headers ]
 
 
 def load_locations():
@@ -92,34 +97,19 @@ def get_location_match( val ):
     raise UserWarning( "No location found for: '{}'".format( val ) )
 
 
-def get_grade_level( val ):
-    # Try to extract grade level from subject (val) passed in
-    grade_levels = collections.OrderedDict()
-    grade_levels[ '5th 6th' ] = 6
-    grade_levels[ '5th' ] = 5
-    grade_levels[ '6th' ] = 6
-    grade_levels[ '7th' ] = 7
-
-    rv = None
-    for (k,v) in grade_levels.items():
-        if k in val:
-            rv = v
-            break
-    if rv is None:
-        raise UserWarning( "Unable to find grade level in '{}'".format( val ) )
-    return rv
     
 
 class Event:
     #                                     HOUR_______   SECOND____   AM/PM_______
     re_starttime_from_subj = re.compile( '([0-9]{1,2}):?([0-9]{2})? ?([APM]{2})' )
-    known_headers = [ 'Date', 
+    valid_headers = [ 'Date', 
                       'Start', 
                       'End', 
                       'Description', 
                       'Location', 
                       'Grade', 
-                      'Type' ]
+                      'Type',
+    ]
 
     def __init__( self ):
         self.date = None
@@ -130,12 +120,17 @@ class Event:
         self.starttime = None
         self.endtime = None
 
-    def as_csv( self ):
-        evdate = self.date.strftime( '%a %b %d %Y' )
+    def fmt_Date( self ):
+        return self.date.strftime( '%a %b %d %Y' )
 
+    def fmt_Description( self ):
+        return self.subj
+
+    def fmt_Start( self ):
         evstart = ''
         if self.all_day:
-            # extract start time from subject
+            # check subject for anything that looks like a start time
+            # (useful when scheduler puts game startime in text of the event)
             match = self.re_starttime_from_subj.search( self.subj.upper() )
             if match:
                 matches = pprint.pformat( match.groups() )
@@ -157,11 +152,15 @@ class Event:
                 raise UserWarning( "No starttime found for all-day event '{}'".format( self.subj ) )
         if self.starttime:
             evstart = self.starttime.strftime( '%I:%M %p' )
+        return evstart
 
+    def fmt_End( self ):
         evend = ''
         if self.endtime:
             evend = self.endtime.strftime( '%I:%M %p' )
+        return evend
 
+    def fmt_Type( self ):
         evtype = ''
         if self.all_day:
             evtype = 'game'
@@ -171,25 +170,43 @@ class Event:
             evtype = 'game'
         else:
             raise UserWarning( "Error detecting TYPE for: '{}'".format( self.subj ) )
+        return evtype
 
+    def fmt_Location( self ):
         evloc = ''
         if self.location is None:
             if self.all_day:
                 self.location = get_location_match( self.subj )
             else:
                 self.location = locations[ 'DEFAULT' ]
-        if evtype == 'game':
-            evloc = "\"{}\n{}\"".format( self.location.name, self.location.address )
+        if self.fmt_Type() == 'game':
+            evloc = "{}\n{}".format( self.location.name, self.location.address )
+        return evloc
 
-        evgrade = ''
-        if self.grade is not None:
-            evgrade = '{}'.format( self.grade )
+    def fmt_Grade( self ):
+        # Try to extract grade level from subject
+        grade_levels = collections.OrderedDict()
+        grade_levels[ '5th 6th' ] = 6
+        grade_levels[ '5th' ] = 5
+        grade_levels[ '6th' ] = 6
+        grade_levels[ '7th' ] = 7
+        grade_levels[ '8th' ] = 8
 
-        return ','.join( [ evdate, evstart, evend, self.subj, evloc, evgrade, evtype ] )
+        rv = None
+        for (k,v) in grade_levels.items():
+            if k in self.subj:
+                rv = v
+                break
+        if rv is None:
+            raise UserWarning( "Unable to find grade level in '{}'".format( self.subj ) )
+        return rv
 
-    @staticmethod
-    def csv_hdrs():
-        return ','.join([ 'Date', 'Start', 'End', 'Description', 'Location', 'Grade', 'Type' ])
+    def format_parts( self, headers=['Date','Description'] ):
+        outparts = []
+        for h in headers:
+            f = getattr( self, 'fmt_' + h )
+            outparts.append( f() )
+        return outparts
 
 
 def process_datafile( filename ):
@@ -271,35 +288,29 @@ def process_datafile( filename ):
                 if cur_event.subj is None:
                     logging.debug( "SUBJECT" )
                     cur_event.subj = line
-#                    if args.itype == 'sports':
-#                        cur_event.grade = get_grade_level( line )
                 else:
                     cur_event.raw_location = line
-#                    if args.locations:
-#                        cur_event.location = get_location_match( line )
-#                        logging.debug( "SET LOCATION TO '{}'".format( cur_event.location.name ) )
-#                    else:
-#                        # no locations given, so merge second line with subject
-#                        cur_event.subj += ' ' + line
     return all_events
 
 
 def print_csv( event_list ):
-    print( Event.csv_hdrs() )
+    cw = csv.writer( sys.stdout )
+    cw.writerow( output_headers )
     for e in event_list:
-        print( e.as_csv() )
+        cw.writerow( e.format_parts( output_headers ) )
+
+
+def print_html( event_list ):
+    print( "NO HABLA" )
 
 
 def run():
     parse_cmdline()
-    pprint.pprint( output_headers )
-    raise SystemExit()
+    logging.debug( "Output Headers: '{}'".format( pprint.pformat( output_headers ) ) )
     if args.locations:
         load_locations()
     events = process_datafile( args.datafile )
-    f = getattr( __name__, 'print_'+ args.otype )
-    f( events )
-    #print_csv( events )
+    f = globals()[ 'print_'+ args.otype ]( events )
 
 
 if __name__ == '__main__':

@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import sys
 import fileinput
 import datetime
@@ -174,11 +176,13 @@ class Event:
 
     def fmt_Location( self ):
         evloc = ''
-        if self.location is None:
+        if self.raw_location is None:
             if self.all_day:
                 self.location = get_location_match( self.subj )
             else:
                 self.location = locations[ 'DEFAULT' ]
+        else:
+            self.location = get_location_match( self.raw_location )
         if self.fmt_Type() == 'game':
             evloc = "{}\n{}".format( self.location.name, self.location.address )
         return evloc
@@ -222,8 +226,9 @@ def process_datafile( filename ):
     # REGEX VARS
     # New record / day always starts with day-of-month followed by month, day-of-week
     re_valid_dom = re.compile( '^([0-9]{1,2})$' )
-    re_valid_month = re.compile( '^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC), ',
-                                 flags=re.IGNORECASE )
+    all_months = '|'.join( months )
+    month_match_str = f"^({all_months})( [0-9]{{4}})?, "
+    re_valid_month = re.compile( month_match_str, flags=re.IGNORECASE )
 
     # Second part of record is start-time - end-time OR 'All day'
     re_valid_time = re.compile( '([0-9]{2}:[0-9]{2})' )
@@ -255,10 +260,15 @@ def process_datafile( filename ):
                 month_name = month_match.group(1).upper()
                 logging.debug( "Got month: '{}'".format( month_name ) )
                 cur_date_parts[ 'month' ] = months.index( month_name ) + 1
-                if cur_date_parts[ 'month' ] >= today.month:
-                    cur_date_parts[ 'year' ] = this_year
+                # try to extract year from RE match
+                year = month_match.group(2)
+                if len( year ) > 0:
+                    cur_date_parts[ 'year' ] = int( year )
                 else:
-                    cur_date_parts[ 'year' ] = next_year
+                    if cur_date_parts[ 'month' ] >= today.month:
+                        cur_date_parts[ 'year' ] = this_year
+                    else:
+                        cur_date_parts[ 'year' ] = next_year
                 cur_date = datetime.date( year = cur_date_parts[ 'year' ],
                                           month = cur_date_parts[ 'month' ],
                                           day = cur_date_parts[ 'day' ] )

@@ -1,14 +1,14 @@
 #!/usr/bin/python3
 
-import sys
-import fileinput
+import argparse
+import collections
+import csv
 import datetime
+import fileinput
 import logging
 import re
-import collections
-import argparse
+import sys
 import yaml
-import csv
 import pprint
 
 #logging.basicConfig( level=logging.INFO )
@@ -32,7 +32,9 @@ def parse_cmdline():
     global output_headers
     header_list_types = {
         'tiny': [ 'Date', 'Description' ],
-        'all': Event.valid_headers,
+        'menu': [ 'DOM', 'DOW', 'Description' ],
+        'sports': [ 'Date', 'Start', 'End', 'Description', 'Location', 'Grade', 'Type' ],
+        'short': [ 'DOM', 'Mon_Yr_DOW', 'Start_End', 'Description', 'Location' ],
     }
     parser = argparse.ArgumentParser( description=Description )
     parser.add_argument( '-l', '--locations', 
@@ -54,14 +56,14 @@ def parse_cmdline():
 
     otype = parser.add_mutually_exclusive_group()
     otype.add_argument( '--csv', dest='otype', action='store_const', const='csv',
-        help='Format output as CSV'
+        help='Format output as CSV (default: %(default)s)'
     )
     otype.add_argument( '--html', dest='otype', action='store_const', const='html',
-        help='Format output as HTML'
+        help='Format output as HTML (default: %(default)s)'
     )
 
-    defaults = { 'headers': 'all',
-                 'otype': 'csv',
+    defaults = { 'headers': 'short',
+                 'otype': 'html',
     }
     parser.set_defaults( **defaults )
     args = parser.parse_args()
@@ -104,14 +106,14 @@ def get_location_match( val ):
 class Event:
     #                                     HOUR_______   SECOND____   AM/PM_______
     re_starttime_from_subj = re.compile( '([0-9]{1,2}):?([0-9]{2})? ?([APM]{2})' )
-    valid_headers = [ 'Date', 
-                      'Start', 
-                      'End', 
-                      'Description', 
-                      'Location', 
-                      'Grade', 
-                      'Type',
-    ]
+#    valid_headers = [ 'Date', 
+#                      'Start', 
+#                      'End', 
+#                      'Description', 
+#                      'Location', 
+#                      'Grade', 
+#                      'Type',
+#    ]
 
     def __init__( self ):
         self.date = None
@@ -122,8 +124,17 @@ class Event:
         self.starttime = None
         self.endtime = None
 
-    def fmt_Date( self ):
-        return self.date.strftime( '%a %b %d %Y' )
+    def fmt_Date( self, fmt='%a %b %d %Y' ):
+        return self.date.strftime( fmt )
+
+    def fmt_DOM( self ):
+        return self.fmt_Date( fmt='%d' )
+
+    def fmt_Mon_Yr_DOW( self ):
+        return self.fmt_Date( fmt='%b %Y, %a' )
+
+    def fmt_DOW( self ):
+        return self.fmt_Date( fmt='%a' )
 
     def fmt_Description( self ):
         return self.subj
@@ -161,6 +172,9 @@ class Event:
         if self.endtime:
             evend = self.endtime.strftime( '%I:%M %p' )
         return evend
+
+    def fmt_Start_End( self ):
+        return self.fmt_Start() + ' - ' + self.fmt_End()
 
     def fmt_Type( self ):
         evtype = ''
@@ -311,7 +325,26 @@ def print_csv( event_list ):
 
 
 def print_html( event_list ):
-    print( "NO HABLA" )
+    #TODO: use http://www.yattag.org/
+    import yattag
+    # make table of events
+    t_doc, t_tag, t_text, t_line = yattag.Doc().ttl()
+    with t_tag( 'table', klass='calendar' ):
+        for e in event_list:
+            with t_tag( 'tr' ):
+                ev_parts = e.format_parts( output_headers )
+                for i,h in enumerate( output_headers ):
+                    t_line( 'td', ev_parts[i], klass=h )
+
+    doc, tag, text = yattag.Doc().tagtext()
+    with tag( 'html' ):
+        with tag( 'head' ):
+            doc.stag( 'link', rel='stylesheet', type='text/css', href='gcal.css' )
+        with tag( 'body' ):
+            doc.asis( t_doc.getvalue() )
+
+    print( doc.getvalue() )
+
 
 
 def run():

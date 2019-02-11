@@ -33,8 +33,8 @@ def parse_cmdline():
     header_list_types = {
         'tiny': [ 'Date', 'Description' ],
         'menu': [ 'DOM', 'DOW', 'Description' ],
-        'sports': [ 'Date', 'Start', 'End', 'Description', 'Location', 'Grade', 'Type' ],
         'short': [ 'DOM', 'Mon_Yr_DOW', 'Start_End', 'Description', 'Location' ],
+        'sports': [ 'Date', 'Start', 'End', 'Description', 'Location', 'Grade', 'Type' ],
     }
     parser = argparse.ArgumentParser( description=Description )
     parser.add_argument( '-l', '--locations', 
@@ -62,7 +62,7 @@ def parse_cmdline():
         help='Format output as HTML (default: %(default)s)'
     )
 
-    defaults = { 'headers': 'short',
+    defaults = { 'headers': 'menu',
                  'otype': 'html',
     }
     parser.set_defaults( **defaults )

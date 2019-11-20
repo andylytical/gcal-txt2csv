@@ -1,52 +1,57 @@
 ---
-DEFAULT: Holy Cross
+DEFAULT: HCS
 Blue Ridge:
-    name: 'Blue Ridge Junior High School'
+    name: Blue Ridge Junior High School
     address: '247 S McKinley St, Mansfield, IL 61854'
-'Buckley':
-    name: "St John's Lutheran School"
-    address: "206 E Main St, Buckley, IL 60918, USA"
+Buckley:
+    name: St John's Lutheran School
+    address: '206 E Main St, Buckley, IL 60918, USA'
 'Corpus Christi':
-    name: 'Corpus Christi Catholic School'
+    name: Corpus Christi Catholic School
     address: '1909 E Lincoln St, Bloomington, IL 61701'
-'Deland':
-    name: 'De Land Weldon Elementary School'
+Deland:
+    name: De Land Weldon Elementary School
     address: '304 IL-10, De Land, IL 61839'
-'Gifford':
-    name: "Gifford Public School"
-    address: "406 S Main St, Gifford, IL 61847"
-'Holy Cross':
-    name: "Holy Cross School"
-    address: ""
+Gifford:
+    name: Gifford Public School
+    address: '406 S Main St, Gifford, IL 61847'
+HCS:
+    regex: HCS|Holy Cross( School)?
+    name: Holy Cross School
+    address: '410 W White St, Champaign, IL 61820, USA'
 'Holy Family':
-    name: "Holy Family Catholic Church"
-    address: "444 E Main St, Danville, IL 61832"
-'Judah':
-    address: "908 N Prospect Ave, Champaign, IL 61820"
-'Mahomet-Seymour':
-    name: "Mahomet-Seymour Junior High"
-    address: "201 W State St, Mahomet, IL 61853"
-'Next Gen':
-    regex: 'Next Gen(eration)?'
-    name: "Next Generation School"
-    address: "2511 Galen Dr, Champaign, IL 61821"
-'St. Joe':
-    regex: 'St\.? Jo(e|seph)'
-    name: "St. Joseph"
-    address: "606 Peters Dr, St Joseph, IL 61873"
-'Malachy':
-    name: "St. Malachy's Catholic Church"
-    address: "340 E Belle Ave, Rantoul, IL 61866"
+    name: Holy Family Catholic Church
+    address: '444 E Main St, Danville, IL 61832'
+Hoopeston:
+    regex: Hoopeston|John Greer
+    name: John Greer Elementary School
+    address: '609 W Main St, Hoopeston, IL 60942, USA'
+Judah:
+    address: '908 N Prospect Ave, Champaign, IL 61820'
+Mahomet-Seymour:
+    name: Mahomet-Seymour Junior High
+    address: '201 W State St, Mahomet, IL 61853'
+Next Gen:
+    regex: Next Gen(eration)?
+    name: Next Generation School
+    address: '2511 Galen Dr, Champaign, IL 61821'
+St. Joe:
+    regex: St\.? Jo(e|seph)
+    name: St. Joseph
+    address: '606 Peters Dr, St Joseph, IL 61873'
+Malachy:
+    name: St. Malachy's Catholic Church
+    address: '340 E Belle Ave, Rantoul, IL 61866'
 'St. Matt':
-    regex: 'St\.? Matt'
-    name: "St. Matthew Catholic School"
-    address: "1307 Lincolnshire Dr, Champaign, IL 61821"
-'Tabernacle':
-    name: "Tabernacle Baptist Church"
-    address: "650 N Wyckles Rd, Decatur, IL 62522"
-'Thomasboro':
-    name: "Thomasboro Grade School"
-    address: "201 N Phillips St, Thomasboro, IL 61878"
-'TBD':
-    name: "TBD"
-    address: ""
+    regex: St\.? Matt
+    name: St. Matthew Catholic School
+    address: '1307 Lincolnshire Dr, Champaign, IL 61821'
+Tabernacle:
+    name: Tabernacle Baptist Church
+    address: '650 N Wyckles Rd, Decatur, IL 62522'
+Thomasboro:
+    name: Thomasboro Grade School
+    address: '201 N Phillips St, Thomasboro, IL 61878'
+TBD:
+    name: TBD
+    address: ''

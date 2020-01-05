@@ -164,6 +164,7 @@ def process_datafile( filename ):
                     cur_event.subj = line
                 else:
                     cur_event.raw_location = line
+                    logging.debug( "RAW_LOCATION" )
     return all_events
 
 

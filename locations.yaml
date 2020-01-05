@@ -12,6 +12,9 @@ Buckley:
 Deland:
     name: De Land Weldon Elementary School
     address: '304 IL-10, De Land, IL 61839'
+Edison:
+    name: Edison Middle School
+    address: '306 W Green St, Champaign, IL 61820'
 Gifford:
     name: Gifford Public School
     address: '406 S Main St, Gifford, IL 61847'
@@ -35,6 +38,9 @@ Next Gen:
     regex: Next Gen(eration)?
     name: Next Generation School
     address: '2511 Galen Dr, Champaign, IL 61821'
+Philo:
+    name: St. Thomas Philo
+    address: '311 Madison St, Philo, IL 61864'
 St. Joe:
     regex: St\.? Jo(e|seph)
     name: St. Joseph

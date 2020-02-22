@@ -1,6 +1,5 @@
 # Custom
 *.csv
-*.txt
 *.html
 input*
 output*

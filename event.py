@@ -112,6 +112,7 @@ class Event:
         grade_levels[ '7th' ] = 7
         grade_levels[ '7GVB' ] = 7
         grade_levels[ '8th' ] = 8
+        grade_levels[ '7/8' ] = '7/8'
 
         rv = None
         for (k,v) in grade_levels.items():
